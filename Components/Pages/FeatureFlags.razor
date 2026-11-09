@@ -1,0 +1,77 @@
+@page "/features"
+@inject FeatureFlagStore Store
+
+<PageTitle>Feature flags</PageTitle>
+
+<main class="page">
+    <nav class="page-nav" aria-label="Main navigation">
+        <a href="/">Tasks</a>
+        <a class="active" href="/features">Feature flags</a>
+    </nav>
+
+    <header class="page-header">
+        <p class="eyebrow">APILAB / TEST CONTROLS</p>
+        <h1>Feature flags</h1>
+        <p class="overview">@enabledFlags.Count(flag => flag.Value) enabled <span aria-hidden="true">/</span> @flags.Length total</p>
+        @if (!Store.CanEnableFlags)
+        {
+            <p class="flag-description">Bug switches are available only in the Development environment.</p>
+        }
+    </header>
+
+    <div class="flag-list">
+        @for (var index = 0; index < flags.Length; index++)
+        {
+            var flag = flags[index];
+            var bugLabel = $"Bug {index + 1}";
+            var isRevealed = revealedFlags.Contains(flag.Key);
+
+            <div class="flag-row">
+                <div>
+                    <p class="flag-name">@bugLabel</p>
+                    @if (isRevealed)
+                    {
+                        <div class="flag-details">
+                            <p class="flag-title">@flag.Name</p>
+                            <p class="flag-description">@flag.Description</p>
+                        </div>
+                    }
+                </div>
+                <div class="flag-actions">
+                    <button class="reveal-button" type="button" aria-expanded="@isRevealed" @onclick="() => ToggleReveal(flag.Key)">
+                        @(isRevealed ? "Hide" : "Reveal")
+                    </button>
+                    <label class="switch-control">
+                        <input type="checkbox" aria-label="Enable @bugLabel" disabled="@(!Store.CanEnableFlags)" @bind="enabledFlags[flag.Key]" @bind:after="() => SaveFlag(flag.Key)" />
+                        <span class="switch-track" aria-hidden="true"></span>
+                    </label>
+                </div>
+            </div>
+        }
+    </div>
+</main>
+
+@code {
+    private FeatureFlag[] flags = [];
+    private readonly Dictionary<string, bool> enabledFlags = new(StringComparer.Ordinal);
+    private readonly HashSet<string> revealedFlags = new(StringComparer.Ordinal);
+
+    protected override void OnInitialized()
+    {
+        flags = Store.GetAll().ToArray();
+        foreach (var flag in flags)
+        {
+            enabledFlags[flag.Key] = flag.Enabled;
+        }
+    }
+
+    private void SaveFlag(string key) => Store.SetEnabled(key, enabledFlags[key]);
+
+    private void ToggleReveal(string key)
+    {
+        if (!revealedFlags.Add(key))
+        {
+            revealedFlags.Remove(key);
+        }
+    }
+}

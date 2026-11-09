@@ -1,0 +1,71 @@
+@APILab_HostAddress = http://localhost:5265
+
+GET {{APILab_HostAddress}}/todos/?page=1&pageSize=10
+Accept: application/json
+
+###
+GET {{APILab_HostAddress}}/todos/?page=2&pageSize=10
+Accept: application/json
+
+###
+
+GET {{APILab_HostAddress}}/todos/1
+Accept: application/json
+
+###
+
+POST {{APILab_HostAddress}}/todos/
+Content-Type: application/json
+
+{
+	"title": "Plan the week",
+	"dueBy": "2026-10-26",
+	"isComplete": false
+}
+
+###
+
+PUT {{APILab_HostAddress}}/todos/1
+Content-Type: application/json
+
+{
+	"title": "Walk the dog",
+	"dueBy": null,
+	"isComplete": true
+}
+
+###
+
+DELETE {{APILab_HostAddress}}/todos/1
+
+###
+
+GET {{APILab_HostAddress}}/TodoService.asmx?wsdl
+
+###
+
+POST {{APILab_HostAddress}}/TodoService.asmx
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "http://tempuri.org/ITodoSoapService/GetTodos"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+	<soap:Body>
+		<GetTodos xmlns="http://tempuri.org/" />
+	</soap:Body>
+</soap:Envelope>
+
+###
+
+POST {{APILab_HostAddress}}/TodoService.asmx
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "http://tempuri.org/ITodoSoapService/GetTodoById"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+	<soap:Body>
+		<GetTodoById xmlns="http://tempuri.org/">
+			<id>1</id>
+		</GetTodoById>
+	</soap:Body>
+</soap:Envelope>

@@ -1,0 +1,216 @@
+@page "/"
+@inject TodoStore Store
+
+<PageTitle>Tasks</PageTitle>
+
+<main class="page">
+    <nav class="page-nav" aria-label="Main navigation">
+        <a class="active" href="/">Tasks</a>
+        <a href="/features">Feature flags</a>
+    </nav>
+
+    <header class="page-header">
+        <p class="eyebrow">APILAB / PERSONAL</p>
+        <h1>Tasks</h1>
+        <p class="overview">@todoPage.TotalCount total tasks</p>
+    </header>
+
+    <form class="add-form" @onsubmit="AddTodo" @onsubmit:preventDefault>
+        <label for="new-task">Add a task</label>
+        <div class="add-row">
+            <input id="new-task" @bind="newTitle" @bind:event="oninput" @bind:after="ClearAddTitleError"
+                   aria-invalid="@(!string.IsNullOrEmpty(addTitleError))"
+                   aria-describedby="@(string.IsNullOrEmpty(addTitleError) ? null : "new-task-error")"
+                   placeholder="What needs doing?" autocomplete="off" />
+            <input aria-label="Due date" type="date" @bind="newDueBy" />
+            <button type="submit">Add task</button>
+        </div>
+        @if (!string.IsNullOrEmpty(addTitleError))
+        {
+            <p class="validation-message" id="new-task-error" role="alert">@addTitleError</p>
+        }
+    </form>
+
+    <section class="task-list" aria-label="Todo items">
+        @if (todoPage.Items.Length == 0)
+        {
+            <p class="empty-state">Nothing here yet. Add a task to get started.</p>
+        }
+        else
+        {
+            @foreach (var todo in todoPage.Items)
+            {
+                <article class="task-row @(todo.IsComplete ? "is-complete" : null)">
+                    <button class="status-button" type="button" @onclick="() => ToggleComplete(todo)">
+                        @(todo.IsComplete ? "Reopen" : "Complete")
+                    </button>
+
+                    <div class="task-details">
+                        @if (editingTodoId == todo.Id)
+                        {
+                            <div class="edit-fields">
+                                <input aria-label="Task title" @bind="editedTitle" @bind:event="oninput" @bind:after="ClearEditTitleError"
+                                       aria-invalid="@(!string.IsNullOrEmpty(editTitleError))"
+                                       aria-describedby="@(string.IsNullOrEmpty(editTitleError) ? null : "edit-task-error")" />
+                                <input aria-label="Due date" type="date" @bind="editedDueBy" />
+                                <button type="button" @onclick="() => SaveEdit(todo)">Save</button>
+                                <button class="quiet-button" type="button" @onclick="CancelEdit">Cancel</button>
+                                @if (!string.IsNullOrEmpty(editTitleError))
+                                {
+                                    <p class="validation-message" id="edit-task-error" role="alert">@editTitleError</p>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="task-heading">
+                                <span class="task-id">#@todo.Id</span>
+                                <h2>@todo.Title</h2>
+                            </div>
+                            @if (todo.DueBy is { } dueBy)
+                            {
+                                <p class="due-date">Due @dueBy.ToString("MMM d, yyyy")</p>
+                            }
+                        }
+                    </div>
+
+                    @if (editingTodoId != todo.Id)
+                    {
+                        <div class="task-actions">
+                            @if (pendingDeleteTodoId == todo.Id)
+                            {
+                                <span class="delete-confirmation" aria-live="polite">Delete this task?</span>
+                                <button class="delete-button" type="button" @onclick="() => ConfirmDeleteTodo(todo.Id)">Confirm</button>
+                                <button class="quiet-button" type="button" @onclick="CancelDeleteTodo">Cancel</button>
+                            }
+                            else
+                            {
+                                <button class="quiet-button" type="button" @onclick="() => StartEdit(todo)">Edit</button>
+                                <button class="delete-button" type="button" @onclick="() => RequestDeleteTodo(todo.Id)">Delete</button>
+                            }
+                        </div>
+                    }
+                </article>
+            }
+        }
+    </section>
+
+    <footer class="list-footer">
+        <span>Showing @firstItem-@lastItem of @todoPage.TotalCount tasks</span>
+        <nav class="pagination" aria-label="Task pages">
+            <button type="button" class="quiet-button" disabled="@(todoPage.Page <= 1)" @onclick="PreviousPage">Previous</button>
+            <span>Page @todoPage.Page of @Math.Max(todoPage.TotalPages, 1)</span>
+            <button type="button" class="quiet-button" disabled="@(todoPage.Page >= todoPage.TotalPages)" @onclick="NextPage">Next</button>
+        </nav>
+    </footer>
+</main>
+
+@code {
+    private const int PageSize = 10;
+    private TodoPage todoPage = new([], 1, PageSize, 0, 0);
+    private int currentPage = 1;
+    private string newTitle = "";
+    private string? addTitleError;
+    private DateOnly? newDueBy;
+    private int? editingTodoId;
+    private string editedTitle = "";
+    private string? editTitleError;
+    private DateOnly? editedDueBy;
+    private int? pendingDeleteTodoId;
+
+    private int firstItem => todoPage.TotalCount == 0 ? 0 : (todoPage.Page - 1) * todoPage.PageSize + 1;
+    private int lastItem => Math.Min(todoPage.Page * todoPage.PageSize, todoPage.TotalCount);
+
+    protected override void OnInitialized() => RefreshTodos();
+
+    private void RefreshTodos()
+    {
+        todoPage = Store.GetPage(currentPage, PageSize);
+        var lastPage = Math.Max(todoPage.TotalPages, 1);
+        if (currentPage > lastPage)
+        {
+            currentPage = lastPage;
+            todoPage = Store.GetPage(currentPage, PageSize);
+        }
+    }
+
+    private void PreviousPage()
+    {
+        currentPage--;
+        RefreshTodos();
+    }
+
+    private void NextPage()
+    {
+        currentPage++;
+        RefreshTodos();
+    }
+
+    private void AddTodo()
+    {
+        var title = newTitle.Trim();
+        if (title.Length == 0)
+        {
+            addTitleError = "Enter a task title.";
+            return;
+        }
+
+        Store.Create(title, newDueBy, false);
+        newTitle = "";
+        addTitleError = null;
+        newDueBy = null;
+        currentPage = Math.Max(Store.GetPage(1, PageSize).TotalPages, 1);
+        RefreshTodos();
+    }
+
+    private void ToggleComplete(Todo todo)
+    {
+        Store.Update(todo.Id, todo.Title, todo.DueBy, !todo.IsComplete);
+        RefreshTodos();
+    }
+
+    private void StartEdit(Todo todo)
+    {
+        pendingDeleteTodoId = null;
+        editingTodoId = todo.Id;
+        editedTitle = todo.Title ?? "";
+        editTitleError = null;
+        editedDueBy = todo.DueBy;
+    }
+
+    private void SaveEdit(Todo todo)
+    {
+        var title = editedTitle.Trim();
+        if (title.Length == 0)
+        {
+            editTitleError = "Enter a task title.";
+            return;
+        }
+
+        Store.Update(todo.Id, title, editedDueBy, todo.IsComplete);
+        editingTodoId = null;
+        editTitleError = null;
+        RefreshTodos();
+    }
+
+    private void ClearAddTitleError() => addTitleError = null;
+
+    private void ClearEditTitleError() => editTitleError = null;
+
+    private void CancelEdit()
+    {
+        editingTodoId = null;
+        editTitleError = null;
+    }
+
+    private void RequestDeleteTodo(int id) => pendingDeleteTodoId = id;
+
+    private void CancelDeleteTodo() => pendingDeleteTodoId = null;
+
+    private void ConfirmDeleteTodo(int id)
+    {
+        Store.Delete(id);
+        pendingDeleteTodoId = null;
+        RefreshTodos();
+    }
+}
